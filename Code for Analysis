@@ -1,0 +1,354 @@
+# this is the code used for the data analysis in R
+
+library(tidyverse)  # Includes ggplot2, dplyr, tidyr and readr
+library(lubridate)  # For date format
+library(scales)     # Allows the use of commas for better readability of numbers
+
+# Read cvs for each month and plug into dataframes (df)
+jul22_df <- read.csv("C:/Users/Omar/OneDrive/Desktop/Coursera/Data Analytics Professional Certificate/Case Study/Jul22_df.csv")
+aug22_df <- read.csv("C:/Users/Omar/OneDrive/Desktop/Coursera/Data Analytics Professional Certificate/Case Study/Aug22_df.csv")
+sep22_df <- read.csv("C:/Users/Omar/OneDrive/Desktop/Coursera/Data Analytics Professional Certificate/Case Study/Sep22_df.csv")
+oct22_df <- read.csv("C:/Users/Omar/OneDrive/Desktop/Coursera/Data Analytics Professional Certificate/Case Study/Oct22_df.csv")
+nov22_df <- read.csv("C:/Users/Omar/OneDrive/Desktop/Coursera/Data Analytics Professional Certificate/Case Study/Nov22_df.csv")
+dec22_df <- read.csv("C:/Users/Omar/OneDrive/Desktop/Coursera/Data Analytics Professional Certificate/Case Study/Dec22_df.csv")
+jan23_df <- read.csv("C:/Users/Omar/OneDrive/Desktop/Coursera/Data Analytics Professional Certificate/Case Study/Jan23_df.csv")
+feb23_df <- read.csv("C:/Users/Omar/OneDrive/Desktop/Coursera/Data Analytics Professional Certificate/Case Study/Feb23_df.csv")
+mar23_df <- read.csv("C:/Users/Omar/OneDrive/Desktop/Coursera/Data Analytics Professional Certificate/Case Study/Mar23_df.csv")
+apr23_df <- read.csv("C:/Users/Omar/OneDrive/Desktop/Coursera/Data Analytics Professional Certificate/Case Study/Apr23_df.csv")
+may23_df <- read.csv("C:/Users/Omar/OneDrive/Desktop/Coursera/Data Analytics Professional Certificate/Case Study/May23_df.csv")
+jun23_df <- read.csv("C:/Users/Omar/OneDrive/Desktop/Coursera/Data Analytics Professional Certificate/Case Study/Jun23_df.csv")
+
+# Put all 12 month in one 7/22 -6/23 (1 year) data frame
+# N.B. rbinds needs to have the same number of columns USE df = subset(df, select = -c(X,X.1,X.2) ) TO REMOVE extra Columns
+cyclistic_df <- rbind(jul22_df, aug22_df, sep22_df, oct22_df, nov22_df, dec22_df, jan23_df, feb23_df, mar23_df, apr23_df, may23_df, jun23_df)
+
+# Put the dataframe in another dataframe (data) for cleaning
+data <- cyclistic_df
+
+# Change dates format and make it date instead of string FORMAT %m/%d/%Y %H:%M for (mm/dd/yyyy hh:mm)
+# For started_at 
+data$started_at <- as.POSIXct(data$started_at, format = "%m/%d/%Y %H:%M" )
+
+# For ended_at
+data$ended_at <- as.POSIXct(data$ended_at, format = "%m/%d/%Y %H:%M" )
+
+# Calculate time difference in minutes (diff = ended_at - started_at)
+data$time_difference_mins <- as.numeric(difftime(data$ended_at, data$started_at, units = "mins"))
+
+# Creates a day field from day started with FORMAT %Y-%m-%d for yyyy-mm-dd)
+data$day <- format(data$started_at, format = "%Y-%m-%d")
+
+# Turn started_at date into to Sunday-Saturday
+data$weekday <- weekdays(data$started_at)
+
+# Turn started_at to January-June   Format %B gives full name of the month of the date
+data$month <- format(data$started_at, format = "%B")
+
+# When did it start categorize them into Morning, Afternoon, Evening and Night
+day_time_start <- function(time) {
+  if (is.na(time)) {
+    return(NA)
+  }
+  
+  hour <- hour(time)
+  
+  if (hour >= 5 && hour < 12) {
+    return("Morning")
+  } else if (hour >= 12 && hour < 17) {
+    return("Afternoon")
+  } else if (hour >= 17 && hour < 21) {
+    return("Evening")
+  } else {
+    return("Night")
+  }
+}
+
+# Create a new field for time trip starts
+data$day_time_start <- sapply(data$started_at, day_time_start)
+
+# When did it end categorize them into Morning, Afternoon, Evening and Night
+day_time_end <- function(time) {
+  
+  if (is.na(time)) {
+    return(NA)
+  }
+  hour <- hour(time)
+  if (hour >= 5 && hour < 12) {
+    return("Morning")
+  } else if (hour >= 12 && hour < 17) {
+    return("Afternoon")
+  } else if (hour >= 17 && hour < 21) {
+    return("Evening")
+  } else {
+    return("Night")
+  }
+}
+
+# Create a new field for time trip ends
+data$day_time_end <- sapply(data$ended_at, day_time_end)
+
+Season <- function(month) {
+  if (month %in% c("December", "January", "February")) {
+    return("Winter")
+  } else if (month %in% c("March", "April", "May")) {
+    return("Spring")
+  } else if (month %in% c("June", "July", "August")) {
+    return("Summer")
+  } else {
+    return("Fall")
+  }
+}
+
+# Create a new field for time trip starts
+data$Season <- sapply(data$month, Season)
+
+# CLEANING DATA
+# Remove null data and put it in a new dataframe (Cleaned_df)
+cleaned_df <- na.omit(data)
+
+# Remove duplicates
+cleaned_df <- cleaned_df[!duplicated(cleaned_df), ]
+
+# Remove if ride duration is less than 0
+cleaned_df <- cleaned_df[!(cleaned_df$time_difference_mins <= 0), ]
+
+# Remove useless fields
+cleaned_df <- cleaned_df[, !(names(cleaned_df) %in% c("ride_id", "start_station_name","end_station_name", "start_lat","start_lng","end_lat","end_lng"))]
+
+# Remove useless data frames for faster analysis
+remove(Jul22_df, aug22_df, sep22_df, oct22_df, nov22_df, dec22_df, jan23_df, feb23_df, mar23_df, apr23_df, may23_df, jun23_df)
+
+# NOW WORKING WITH CLEANED_DF FOR ANALYSIS
+
+# Make the months in order
+month_order <- c("July", "August", "September","October", "November","December","January", "February", "March", "April", "May", "June")
+cleaned_df$month <- factor(cleaned_df$month, levels = month_order)
+
+# Make the weekdays in order 
+weekday_order <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+cleaned_df$weekday <- factor(cleaned_df$weekday, levels = weekday_order)
+
+# Make the Seasons in order 
+season_order <- c("Winter", "Spring", "Summer", "Fall")
+cleaned_df$Season <- factor(cleaned_df$Season, levels = season_order)
+
+###################################################################
+
+# Bar graph for day_time for each month in scientific notation
+ggplot(cleaned_df, aes(month, fill = day_time_start),levels = month_order) +
+  geom_bar(position= "dodge")
+
+# Bar graph for amount of Trips Started by Time of Day Per Month
+ggplot(cleaned_df, aes(x = month, fill = day_time_start),levels = month_order) +
+  geom_bar(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  labs(x = "Month", y = "Number of Trips", fill = "Day Time Start") +
+  theme_minimal() +
+  ggtitle("Trips Started by Time of Day Per Month")
+
+
+# Bar graph for amount of Trips Ended by Time of Day Per Month
+ggplot(cleaned_df, aes(x = month, fill = day_time_end),levels = month_order) +
+  geom_bar(position = "dodge") +
+  scale_y_continuous(labels = comma) +
+  labs(x = "Month", y = "Number of Trips", fill = "Day Time End") +
+  theme_minimal() +
+  ggtitle("Trips Ended by Time of Day Per Month")
+
+
+# Faceted bar chart
+long_df <- cleaned_df %>%
+  pivot_longer(cols = c(day_time_start, day_time_end), names_to = "event", values_to = "time_of_day")
+
+ggplot(long_df, aes(x = time_of_day, fill = time_of_day)) +
+  geom_bar() +
+  facet_wrap(~ event, scales = "free_y") +
+  labs(x = "Time of Day", y = "Number of Trips", fill = "Time of Day") +
+  theme_minimal() +
+  ggtitle("Trips Started and Ended by Time of Day")
+
+#################################################
+
+# Bar graph for amount of trips per month by seasons
+ggplot(cleaned_df, aes(x = Season, fill = Season)) +
+  geom_bar(position = "dodge", stat = "count") +
+  labs(title = "Seasonal Bike Usage", x = "Seasons", y = "Number of Trips") +
+  theme_minimal()
+
+
+# Bar graph for day_time for each month but fill
+ggplot(cleaned_df, aes(month, fill = day_time_start)) +
+  geom_bar(position= "fill")
+
+
+# Bar graph, which type of rides are used every month
+ggplot(cleaned_df, aes(x = rideable_type)) +
+  geom_bar() +
+  scale_y_continuous(labels = comma) +
+  facet_wrap(~month) 
+
+# NOW WORKING WITH TEST_DF FOR ANALYSIS
+test_df<- cleaned_df
+
+# How many are members and causals July 22 - June 23
+test_df %>%
+  group_by(member_casual) %>%
+  count()
+
+
+# How many rides based on type of ride
+test_df %>%
+  group_by(rideable_type) %>%
+  count()
+
+
+# Total rides by Casual and Member per month
+test_df$month <- factor(test_df$month, levels = month_order)
+test_df %>%
+  group_by(member_casual, month) %>%
+  count() %>%
+  print(n = 24)
+
+
+# Rides per month
+test_df$month <- factor(test_df$month, levels = month_order)
+test_df %>%
+  group_by(month) %>%
+  count() %>%
+  print(n = 24)
+
+
+# Total rides by Casual and Member per weekday
+test_df$weekday <- factor(test_df$weekday, levels = weekday_order)
+test_df %>%
+  group_by(member_casual, weekday) %>%
+  count()
+
+
+# Total rides per weekday
+test_df$weekday <- factor(test_df$weekday, levels = weekday_order)
+test_df %>%
+  group_by(weekday) %>%
+  count()
+
+# Rides per month
+test_df$Season <- factor(test_df$Season, levels = season_order)
+test_df %>%
+  group_by(Season) %>%
+  count() %>%
+  print(n = 24)
+
+# When the rides start by member_casual
+day_time_order <- c("Morning", "Afternoon", "Evening", "Night")
+test_df$day_time_start <- factor(test_df$day_time_start, levels = day_time_order)
+test_df %>%
+  group_by(member_casual, day_time_start) %>%
+  count()
+
+
+# When the rides start for all
+test_df$day_time_start <- factor(test_df$day_time_start, levels = day_time_order)
+test_df %>%
+  group_by(day_time_start) %>%
+  count()
+
+
+# When the rides end by member_casual
+day_time_order <- c("Morning", "Afternoon", "Evening", "Night")
+test_df$day_time_end <- factor(test_df$day_time_end, levels = day_time_order)
+test_df %>%
+  group_by(member_casual, day_time_end) %>%
+  count()
+
+
+# When the rides end for all
+test_df$day_time_end <- factor(test_df$day_time_end, levels = day_time_order)
+test_df %>%
+  group_by(day_time_end) %>%
+  count()
+
+
+# Ride length by member_casual
+test_df <- test_df %>%
+  mutate(category = case_when(
+    time_difference_mins < 60 ~ "Less than an hour",
+    time_difference_mins >= 60 & time_difference_mins <= 1440 ~ "Between an hour and 24 hours",
+    time_difference_mins > 1440 ~ "More than 24 hours"
+  ))
+category_order <- c("Less than an hour", "Between an hour and 24 hours", "More than 24 hours")
+test_df$category <- factor(test_df$category, levels = category_order)
+test_df %>%
+  group_by(member_casual, category) %>%
+  count()
+
+
+# Ride length for all
+test_df <- test_df %>%
+  mutate(category = case_when(
+    time_difference_mins < 60 ~ "Less than an hour",
+    time_difference_mins >= 60 & time_difference_mins <= 1440 ~ "Between an hour and 24 hours",
+    time_difference_mins > 1440 ~ "More than 24 hours"
+  ))
+category_order <- c("Less than an hour", "Between an hour and 24 hours", "More than 24 hours")
+test_df$category <- factor(test_df$category, levels = category_order)
+test_df %>%
+  group_by(category) %>%
+  count()
+
+
+# Avg ride length for all casuals and members grouped by casual_member
+test_df %>%
+  group_by(member_casual) %>%
+  summarize(avg_ride_length_mins = mean(time_difference_mins))
+
+
+# Avg ride length for all casuals and members grouped by casual_member and rideable_type
+test_df %>%
+  group_by(member_casual, rideable_type) %>%
+  summarize(avg_ride_length_mins = mean(time_difference_mins))
+
+
+# Avg ride length for all casuals and members grouped by casual_member and rideable_type
+test_df %>%
+  group_by(rideable_type) %>%
+  summarize(avg_ride_length_mins = mean(time_difference_mins))
+
+
+# Histogram of ride length by Member Type
+ggplot(test_df, aes(x = category, fill = member_casual)) +
+  geom_bar(position = "dodge", color = "black") +
+  labs(title = "Histogram of ride length by Member Type",
+       x = "Ride Length",
+       y = "Number of trips") +
+  theme_minimal() +
+  scale_y_continuous(labels = comma)
+
+
+# Bar graph for total count of members and casuals
+ggplot(test_df, aes(x = member_casual, fill = member_casual)) +
+  geom_bar() +
+  labs(title = "Total trips comparison between Members and Casuals",
+       x = "Member/Casual",
+       y = "Count") +
+  theme_minimal()+
+  scale_y_continuous(labels = comma)
+
+
+# Histogram graph for ride_length for Members and Casuals
+ggplot(test_df, aes(x = time_difference_mins, fill = member_casual)) +
+  geom_histogram(binwidth = 10, position = "dodge", color = "black") +
+  labs(title = "Histogram graph for ride_length for Members and Casuals",
+       x = "Time Difference (minutes)",
+       y = "Frequency") +
+  theme_minimal() +
+  xlim(0, 60)  # Set the desired x-axis range here
+
+
+# Violin Plot of ride length (1 hour) for Members and Casuals
+ggplot(test_df, aes(x = member_casual, y = time_difference_mins, fill = member_casual)) +
+  geom_violin() +
+  labs(title = "Violin Plot of ride length (1 hour) for Members and Casuals",
+       x = "Member/Casual",
+       y = "Ride length (minutes)") +
+  theme_minimal() +
+  ylim(0, 60)  # Set the desired y-axis range here
